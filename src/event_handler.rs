@@ -12,6 +12,10 @@ pub(crate) async fn function_handler(event: LambdaEvent<EventBridgeEvent<Value>>
         .load()
         .await;
 
+    // Define the Slack channel from env
+    let channel = std::env::var("SLACK_CHANNEL")
+        .expect("SLACK_CHANNEL environment variable not set");
+
     // Retrieve the token from AWS Secrets Manager
     let secrets_client = SMClient::new(&config);
     let secret_name = "slack-token";
@@ -41,8 +45,7 @@ pub(crate) async fn function_handler(event: LambdaEvent<EventBridgeEvent<Value>>
         }
 
         // Post the finding summary to Slack
-        let channel = "#aws-security";
-        match post_slack_message(&token, channel, summary).await {
+        match post_slack_message(&token, &channel, summary).await {
             Ok(_) => (),
             Err(e) => tracing::error!("Failed to post finding to Slack: {}", e),
         }
