@@ -11,15 +11,15 @@ pub async fn post_slack_message(
 ) -> Result<(), Box<dyn Error>> {
 
     let image_icon_url = match summary.product_name.as_str() {
-        "Inspector" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_Amazon-Inspector_64.png",
-        "Macie" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_Amazon-Macie_64.png",
-        "WAF" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_AWS-WAF_64.png",
-        "Shield" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_AWS-Shield_64.png",
-        "GuardDuty" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_Amazon-Guard-Duty_64.png",
-        "Detective" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_Amazon-Detective_64.png",
-        "Config" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_AWS-Config_64.png",
-        "IAM Access Analyzer" => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_AWS-Identity-and-Access-Management_64.png",
-        _ => "https://raw.githubusercontent.com/lep511/security-hub-to-slack/refs/heads/main/image-icons/Arch_AWS-Security-Hub_64.png"
+        "Inspector" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473027/Arch_Amazon-Inspector_64_mwcrkr.png",
+        "Macie" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473027/Arch_Amazon-Macie_64_fqdobr.png",
+        "WAF" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473046/Arch_AWS-WAF_64_sy685i.png",
+        "Shield" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473044/Arch_AWS-Shield_64_cgkrnf.png",
+        "GuardDuty" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473027/Arch_Amazon-GuardDuty_64_olhgt8.png",
+        "Detective" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473028/Arch_Amazon-Detective_64_c2ytyn.png",
+        "Config" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473312/Arch_AWS-Config_64_qmcyvc.png",
+        "IAM Access Analyzer" => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473035/Arch_AWS-Identity-and-Access-Management_64_twn9yu.png",
+        _ => "https://res.cloudinary.com/dgslmcpqb/image/upload/v1770473042/Arch_AWS-Security-Hub_64_r5hhru.png"
     };
 
     // Build the blocks for the Slack message
