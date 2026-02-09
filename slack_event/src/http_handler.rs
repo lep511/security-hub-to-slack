@@ -1,92 +1,166 @@
-use lambda_http::{Body, Error, Request, Response};
-use serde::{Serialize, Deserialize};
+use lambda_http::{Body, Error, Request, Response, tracing};
+use aws_config::BehaviorVersion;
+use aws_sdk_secretsmanager::Client as SMClient;
+use serde::Deserialize;
+use serde_json::Value;
+use crate::slack_client::post_slack_message;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct SlackChallenge {
-    token: String,
     challenge: String,
-    #[serde(rename = "type")]
-    event_type: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct SlackEventCallback {
-    token: String,
-    team_id: String,
-    api_app_id: String,
     event: SlackEvent,
-    #[serde(rename = "type")]
-    event_type: String,
-    event_id: String,
-    event_time: i64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct SlackEvent {
     #[serde(rename = "type")]
     event_type: String,
+    #[serde(default)]
     user: String,
-    text: String,
+    #[serde(default)]
     channel: String,
-    ts: String,
+    #[serde(default)]
+    blocks: Vec<Block>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct SlackMessage {
-    channel: String,
+#[derive(Deserialize, Debug)]
+struct Block {
+    #[serde(default)]
+    elements: Vec<BlockElement>,
+}
+
+#[derive(Deserialize, Debug)]
+struct BlockElement {
+    #[serde(default)]
+    elements: Vec<RichTextElement>,
+}
+
+#[derive(Deserialize, Debug)]
+struct RichTextElement {
+    #[serde(rename = "type")]
+    element_type: String,
+    #[serde(default)]
     text: String,
+}
+
+fn extract_text_from_blocks(blocks: &[Block]) -> String {
+    blocks
+        .iter()
+        .flat_map(|block| &block.elements)
+        .flat_map(|element| &element.elements)
+        .filter(|e| e.element_type == "text")
+        .map(|e| e.text.trim())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+async fn event_app_mention_handler(event: &SlackEvent, token: &str) -> Result<(), Error> {
+    let clean_text = extract_text_from_blocks(&event.blocks);
+    
+    tracing::info!("App mention from user: {}", event.user);
+    tracing::info!("Text: {}", clean_text);
+    tracing::info!("Channel: {}", event.channel);
+    
+    match post_slack_message(&token, &event.channel, &clean_text).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let err_msg = format!("Failed to post message to Slack: {}", e);
+            tracing::error!("{}", err_msg);
+            Err(err_msg.into())
+        }
+    }
 }
 
 pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    println!("Received request: {:?}", event);
-    
-    let body = event.body();
-    let body_str = std::str::from_utf8(body.as_ref()).unwrap_or("");
-    
-    // first check for url_verification challenge
-    if let Ok(slack_challenge) = serde_json::from_str::<SlackChallenge>(body_str) {
-        if slack_challenge.event_type == "url_verification" {
-            println!("Processing url_verification challenge");
-            let resp = Response::builder()
+    let body_str = match event.body() {
+        Body::Text(s) => s.as_str(),
+        Body::Binary(b) => std::str::from_utf8(b)?,
+        Body::Empty => "",
+        _ => return Err("Unsupported body type".into()),
+    };
+
+    let payload: Value = serde_json::from_str(body_str)?;
+    tracing::info!("Received event: {}", payload);
+    let event_type = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let config = aws_config::defaults(BehaviorVersion::latest())
+        .load()
+        .await;
+
+    let secrets_client = SMClient::new(&config);
+    let secret_name = "slack-token";
+
+    match event_type {
+        "url_verification" => {
+            let challenge: SlackChallenge = serde_json::from_value(payload)?;
+            tracing::info!("URL verification challenge");
+            Ok(Response::builder()
                 .status(200)
                 .header("content-type", "text/plain")
-                .body(slack_challenge.challenge.into())
-                .map_err(Box::new)?;
-            return Ok(resp);
+                .body(challenge.challenge.into())?)
         }
-    }
-    
-    // app_mention event
-    if let Ok(slack_event) = serde_json::from_str::<SlackEventCallback>(body_str) {
-        if slack_event.event_type == "event_callback" {
-            match slack_event.event.event_type.as_str() {
-                "app_mention" => {
-                    println!("Processing app_mention event");
-                    println!("User: {}", slack_event.event.user);
-                    println!("Text: {}", slack_event.event.text);
-                    println!("Channel: {}", slack_event.event.channel);
-                    
-                    // Here you can process the mention and respond
-                    // For now, just confirm receipt
-                    let resp = Response::builder()
-                        .status(200)
-                        .header("content-type", "application/json")
-                        .body(Body::from("{}"))
-                        .map_err(Box::new)?;
-                    return Ok(resp);
+        "event_callback" => {
+            let event_callback: SlackEventCallback = serde_json::from_value(payload)?;
+            let token = match get_secret(&secrets_client, secret_name).await {
+                Ok(token) => token,
+                Err(e) => {
+                    let err_msg = format!("Failed to retrieve secret '{}': {}", secret_name, e);
+                    tracing::error!("{}", err_msg);
+                    return Err(err_msg.into());
                 }
-                _ => {
-                    println!("Unhandled event type: {}", slack_event.event.event_type);
-                }
+            };
+            
+            if event_callback.event.event_type == "app_mention" {
+                let clean_text = extract_text_from_blocks(&event_callback.event.blocks);
+                
+                tracing::info!("App mention from user: {}", event_callback.event.user);
+                tracing::info!("Text: {}", clean_text);
+                tracing::info!("Channel: {}", event_callback.event.channel);
+                
+                event_app_mention_handler(&event_callback.event, &token).await?;
             }
+            
+            Ok(Response::builder()
+                .status(200)
+                .header("content-type", "application/json")
+                .body("{\"message\": \"Event handled\"}".into())?)
         }
+        _ => Ok(Response::builder()
+            .status(200)
+            .header("content-type", "application/json")
+            .body("{\"message\": \"Event not handled\"}".into())?),
     }
-    
-    // Default response
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/json")
-        .body(Body::from("{}"))
-        .map_err(Box::new)?;
-    Ok(resp)
+}
+
+async fn get_secret(
+    client: &SMClient,
+    secret_name: &str,
+) -> Result<String, Error> {
+    let response = client
+        .get_secret_value()
+        .secret_id(secret_name)
+        .send()
+        .await?;
+
+    // Handle both string and JSON secrets
+    let secret = if let Some(secret_string) = response.secret_string() {
+        // If the secret is a JSON object with a "token" field
+        if secret_string.starts_with('{') {
+            let json: Value = serde_json::from_str(secret_string)?;
+            json["token"]
+                .as_str()
+                .ok_or("Token field not found in secret")?
+                .to_string()
+        } else {
+            // Plain string secret
+            secret_string.to_string()
+        }
+    } else {
+        return Err("Secret not found".into());
+    };
+
+    Ok(secret)
 }

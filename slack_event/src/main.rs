@@ -1,4 +1,5 @@
 use lambda_http::{run, service_fn, tracing, Error};
+mod slack_client;
 mod http_handler;
 use http_handler::function_handler;
 
