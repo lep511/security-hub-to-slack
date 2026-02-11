@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use chrono::DateTime;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Detail {
@@ -233,6 +234,8 @@ pub struct FindingSummary {
     pub button_text: String,
     pub description: String,
     pub remediation: String,
+    pub first_seen: String,
+    pub last_seen: String,
 }
 
 impl FindingSummary {
@@ -288,7 +291,26 @@ impl FindingSummary {
             .and_then(|r| r.references.as_ref())
             .and_then(|refs| refs.first())
             .unwrap_or(&"no_remediation".to_string())
-            .to_string();   
+            .to_string();
+
+        // Extract first seen time
+        let first_seen = finding.finding_info.as_ref()
+            .and_then(|fi| fi.first_seen_time_dt.as_deref())
+            .map(|timestamp| {
+                DateTime::parse_from_rfc3339(timestamp)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                    .unwrap_or_else(|_| timestamp.to_string())
+            })
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        let last_seen = finding.finding_info.as_ref()
+            .and_then(|fi| fi.last_seen_time_dt.as_deref())
+            .map(|timestamp| {
+                DateTime::parse_from_rfc3339(timestamp)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                    .unwrap_or_else(|_| timestamp.to_string())
+            })
+            .unwrap_or_else(|| "Unknown".to_string());
 
         // Extract severity
         let severity = finding.severity.as_deref().unwrap_or("Unknown").to_string();
@@ -311,6 +333,8 @@ impl FindingSummary {
             button_text,
             description,
             remediation,
+            first_seen,
+            last_seen,
         }
     }
 }

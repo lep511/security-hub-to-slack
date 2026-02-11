@@ -36,7 +36,7 @@ pub async fn post_slack_message(
 			"type": "section",
 			"text": {
 				"type": "mrkdwn",
-				"text": format!("_{}_", &summary.description)
+				"text": &summary.description
 			},
 			"accessory": {
 				"type": "image",
@@ -66,6 +66,14 @@ pub async fn post_slack_message(
                             "style": {
 								"bold": true
 							}
+                        },
+                        {
+                            "type": "text",
+                            "text": format!("\n• First Seen: {}", &summary.first_seen)
+                        },
+                        {
+                            "type": "text",
+                            "text": format!("  |  Last Seen: {}", &summary.last_seen)
                         },
 						{
 							"type": "text",

@@ -79,23 +79,18 @@ cd security-hub-to-slack
 pip3 install cargo-lambda
 ```
 
-3. **Build the workspace**
+3. **Build & deploy slack-event**
 ```bash
-cargo build --release
+cd slack-event
+cargo lambda build --release --arm64
+cargo lambda deploy
 ```
 
-4. **Build Lambda functions**
+4. **Build & deploy slack-security-hub**
 ```bash
-# Build all Lambda functions
-cargo lambda build --release -p slack-event
-cargo lambda build --release -p slack-security-hub
-```
-
-5. **Deploy Lambda functions**
-```bash
-# Build all Lambda functions
-cargo lambda deploy -p slack-event
-cargo lambda deploy -p slack-security-hub
+cd slack-security-hub
+cargo lambda build --release --arm64
+cargo lambda deploy --env-var SLACK_CHANNEL={SLACK_CHANNEL_NAME}
 ```
 
 ## ⚙️ Configuration
@@ -204,12 +199,10 @@ Create an EventBridge rule to trigger the `slack-security-hub` Lambda:
 ```json
 {
   "source": ["aws.securityhub"],
-  "detail-type": ["Security Hub Findings - Imported"],
+  "detail-type": ["Findings Imported V2"],
   "detail": {
     "findings": {
-      "Severity": {
-        "Label": ["HIGH", "CRITICAL"]
-      }
+      "severity": ["Critical", "High"]
     }
   }
 }
