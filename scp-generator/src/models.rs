@@ -48,7 +48,6 @@ pub enum ResourceValue {
 #[derive(Debug, Clone)]
 pub struct ScpTemplate {
     pub name: String,
-    pub description: String,
     pub category: String,
     pub policy: ScpPolicy,
     pub file_path: String,
@@ -122,7 +121,6 @@ mod tests {
 
         let template = ScpTemplate {
             name: "Test".to_string(),
-            description: "Test template".to_string(),
             category: "test".to_string(),
             policy,
             file_path: "/tmp/test.json".to_string(),

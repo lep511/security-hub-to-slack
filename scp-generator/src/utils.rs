@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use aws_sdk_organizations::{types::PolicyType, Client};
+use aws_config::BehaviorVersion;
 use colored::*;
 
 pub struct AwsScpManager {
@@ -8,39 +9,41 @@ pub struct AwsScpManager {
 
 impl AwsScpManager {
     pub async fn new() -> Result<Self> {
-        let config = aws_config::load_from_env().await;
+        let config = aws_config::defaults(BehaviorVersion::latest())
+            .load()
+            .await;
         let client = Client::new(&config);
         Ok(Self { client })
     }
 
-    /// Crea una nueva SCP en AWS Organizations
+    /// Creates a new SCP in AWS Organizations
     pub async fn create_scp(
         &self,
         name: &str,
         description: &str,
         content: &str,
     ) -> Result<String> {
-        println!("{}", "📝 Creando SCP en AWS Organizations...".cyan());
+        println!("{}", "📝 Creating SCP in AWS Organizations...".cyan());
 
         let response = self
             .client
             .create_policy()
             .name(name)
-            .description(description)
             .r#type(PolicyType::ServiceControlPolicy)
+            .description(description)
             .content(content)
             .send()
             .await
-            .context("Error al crear la política en AWS")?;
+            .context("Error creating policy in AWS")?;
 
         let policy_id = response
             .policy()
             .and_then(|p| p.policy_summary())
             .and_then(|s| s.id())
-            .context("No se pudo obtener el Policy ID")?
+            .context("Could not get Policy ID")?
             .to_string();
 
-        println!("{}", "✅ SCP creada exitosamente!".green().bold());
+        println!("{}", "✅ SCP created successfully!".green().bold());
         println!("   Policy ID: {}", policy_id.yellow());
 
         if let Some(policy) = response.policy() {
@@ -54,35 +57,33 @@ impl AwsScpManager {
         Ok(policy_id)
     }
 
-    /// Lista todas las SCPs existentes
-    pub async fn list_scps(&self) -> Result<Vec<(String, String, String)>> {
+    /// Lists all existing SCPs
+    pub async fn list_scps(&self) -> Result<Vec<(String, String)>> {
         let response = self
             .client
             .list_policies()
             .filter(PolicyType::ServiceControlPolicy)
             .send()
             .await
-            .context("Error al listar políticas")?;
+            .context("Error listing policies")?;
 
         let mut policies = Vec::new();
 
-        if let Some(policy_summaries) = response.policies() {
-            for summary in policy_summaries {
-                let id = summary.id().unwrap_or("N/A").to_string();
-                let name = summary.name().unwrap_or("N/A").to_string();
-                let description = summary.description().unwrap_or("").to_string();
-                policies.push((id, name, description));
-            }
+        let policy_summaries = response.policies();
+        for summary in policy_summaries {
+            let id = summary.id().unwrap_or("N/A").to_string();
+            let name = summary.name().unwrap_or("N/A").to_string();
+            policies.push((id, name));
         }
 
         Ok(policies)
     }
 
-    /// Adjunta una SCP a un target (OU o Account)
+    /// Attaches an SCP to a target (OU or Account)
     pub async fn attach_policy(&self, policy_id: &str, target_id: &str) -> Result<()> {
         println!(
             "{}",
-            format!("📎 Adjuntando SCP {} a {}...", policy_id, target_id).cyan()
+            format!("📎 Attaching SCP {} to {}...", policy_id, target_id).cyan()
         );
 
         self.client
@@ -91,36 +92,35 @@ impl AwsScpManager {
             .target_id(target_id)
             .send()
             .await
-            .context("Error al adjuntar la política")?;
+            .context("Error attaching policy")?;
 
-        println!("{}", "✅ SCP adjuntada exitosamente!".green().bold());
+        println!("{}", "✅ SCP attached successfully!".green().bold());
 
         Ok(())
     }
 
-    /// Lista las raíces de la organización
+    /// Lists organization roots
     pub async fn list_roots(&self) -> Result<Vec<(String, String)>> {
         let response = self
             .client
             .list_roots()
             .send()
             .await
-            .context("Error al listar roots")?;
+            .context("Error listing roots")?;
 
         let mut roots = Vec::new();
 
-        if let Some(root_list) = response.roots() {
-            for root in root_list {
-                let id = root.id().unwrap_or("N/A").to_string();
-                let name = root.name().unwrap_or("N/A").to_string();
-                roots.push((id, name));
-            }
+        let root_list = response.roots();
+        for root in root_list {
+            let id = root.id().unwrap_or("N/A").to_string();
+            let name = root.name().unwrap_or("N/A").to_string();
+            roots.push((id, name));
         }
 
         Ok(roots)
     }
 
-    /// Lista las OUs bajo un parent
+    /// Lists OUs under a parent
     pub async fn list_ous(&self, parent_id: &str) -> Result<Vec<(String, String)>> {
         let response = self
             .client
@@ -128,22 +128,21 @@ impl AwsScpManager {
             .parent_id(parent_id)
             .send()
             .await
-            .context("Error al listar OUs")?;
+            .context("Error listing OUs")?;
 
         let mut ous = Vec::new();
 
-        if let Some(ou_list) = response.organizational_units() {
-            for ou in ou_list {
-                let id = ou.id().unwrap_or("N/A").to_string();
-                let name = ou.name().unwrap_or("N/A").to_string();
-                ous.push((id, name));
-            }
+        let ou_list = response.organizational_units();
+        for ou in ou_list {
+            let id = ou.id().unwrap_or("N/A").to_string();
+            let name = ou.name().unwrap_or("N/A").to_string();
+            ous.push((id, name));
         }
 
         Ok(ous)
     }
 
-    /// Lista las cuentas bajo un parent
+    /// Lists accounts under a parent
     pub async fn list_accounts_for_parent(&self, parent_id: &str) -> Result<Vec<(String, String, String)>> {
         let response = self
             .client
@@ -151,17 +150,16 @@ impl AwsScpManager {
             .parent_id(parent_id)
             .send()
             .await
-            .context("Error al listar cuentas")?;
+            .context("Error listing accounts")?;
 
         let mut accounts = Vec::new();
 
-        if let Some(account_list) = response.accounts() {
-            for account in account_list {
-                let id = account.id().unwrap_or("N/A").to_string();
-                let name = account.name().unwrap_or("N/A").to_string();
-                let email = account.email().unwrap_or("N/A").to_string();
-                accounts.push((id, name, email));
-            }
+        let account_list = response.accounts();
+        for account in account_list {
+            let id = account.id().unwrap_or("N/A").to_string();
+            let name = account.name().unwrap_or("N/A").to_string();
+            let email = account.email().unwrap_or("N/A").to_string();
+            accounts.push((id, name, email));
         }
 
         Ok(accounts)

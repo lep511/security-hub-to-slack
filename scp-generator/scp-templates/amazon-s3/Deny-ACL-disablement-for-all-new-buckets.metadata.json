@@ -1,0 +1,4 @@
+{
+    "policy_name": "RequireS3BucketOwnerEnforced",
+    "description": "Requires all new S3 buckets to use BucketOwnerEnforced ownership setting"
+}

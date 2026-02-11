@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script para descargar SCPs del repositorio oficial de AWS
+# Script to download SCPs from the official AWS repository
 # https://github.com/aws-samples/service-control-policy-examples
 
 set -e
@@ -9,20 +9,20 @@ REPO_URL="https://github.com/aws-samples/service-control-policy-examples"
 TEMPLATES_DIR="./scp-templates"
 TEMP_DIR="/tmp/scp-examples-$$"
 
-echo "📦 Descargando templates de SCP desde el repositorio de AWS..."
+echo "📦 Downloading SCP templates from AWS repository..."
 
-# Crear directorio temporal
+# Create temporary directory
 mkdir -p "$TEMP_DIR"
 
-# Clonar repositorio
+# Clone repository
 git clone --depth 1 "$REPO_URL" "$TEMP_DIR"
 
-# Crear estructura de directorios
+# Create directory structure
 mkdir -p "$TEMPLATES_DIR"
 
-echo "📁 Organizando templates por categoría..."
+echo "📁 Organizing templates by category..."
 
-# Función para copiar y organizar archivos
+# Function to copy and organize files
 organize_templates() {
     local source_dir="$1"
     local category="$2"
@@ -30,16 +30,16 @@ organize_templates() {
     if [ -d "$source_dir" ]; then
         mkdir -p "$TEMPLATES_DIR/$category"
         
-        # Copiar archivos JSON
+        # Copy JSON files
         find "$source_dir" -name "*.json" -type f -exec cp {} "$TEMPLATES_DIR/$category/" \;
         
-        # Contar archivos copiados
+        # Count copied files
         count=$(find "$TEMPLATES_DIR/$category" -name "*.json" -type f | wc -l)
-        echo "   ✅ $category: $count políticas"
+        echo "   ✅ $category: $count policies"
     fi
 }
 
-# Organizar por categorías comunes del repositorio
+# Organize by common repository categories
 organize_templates "$TEMP_DIR/Deny-changes-to-security-services" "security-services"
 organize_templates "$TEMP_DIR/Require-encryption" "encryption"
 organize_templates "$TEMP_DIR/Deny-leaving-orgs" "organizational-control"
@@ -48,23 +48,23 @@ organize_templates "$TEMP_DIR/Require-MFA" "security"
 organize_templates "$TEMP_DIR/Deny-regions" "compliance"
 organize_templates "$TEMP_DIR/Require-tagging" "governance"
 
-# Buscar y copiar cualquier otro archivo JSON
+# Find and copy any other JSON files
 find "$TEMP_DIR" -name "*.json" -type f ! -path "$TEMPLATES_DIR/*" -exec sh -c '
     category=$(dirname "$1" | xargs basename | tr "[:upper:]" "[:lower:]" | sed "s/[^a-z0-9]/-/g")
     mkdir -p "'"$TEMPLATES_DIR"'/$category"
     cp "$1" "'"$TEMPLATES_DIR"'/$category/"
 ' _ {} \;
 
-# Limpiar
+# Clean up
 rm -rf "$TEMP_DIR"
 
-# Contar total
+# Count total
 total=$(find "$TEMPLATES_DIR" -name "*.json" -type f | wc -l)
 
 echo ""
-echo "✅ Descarga completada!"
-echo "📊 Total de templates: $total"
-echo "📁 Ubicación: $TEMPLATES_DIR"
+echo "✅ Download completed!"
+echo "📊 Total templates: $total"
+echo "📁 Location: $TEMPLATES_DIR"
 echo ""
-echo "Para usar el generador:"
+echo "To use the generator:"
 echo "  cargo run -- --templates-dir $TEMPLATES_DIR"

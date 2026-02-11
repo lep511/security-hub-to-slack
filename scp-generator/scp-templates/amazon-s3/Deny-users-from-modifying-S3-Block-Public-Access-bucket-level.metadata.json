@@ -1,0 +1,4 @@
+{
+    "policy_name": "DenyS3PublicAccessBlock",
+    "description": "Prevents modification of S3 bucket public access block settings"
+}

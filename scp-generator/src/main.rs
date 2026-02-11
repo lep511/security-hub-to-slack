@@ -15,23 +15,23 @@ use ui::{InteractiveMenu, MainMenuOption};
     name = "scp-generator",
     author = "AWS SCP Generator",
     version = "0.1.0",
-    about = "Generador interactivo de Service Control Policies para AWS Organizations"
+    about = "Interactive Service Control Policy generator for AWS Organizations"
 )]
 struct Args {
-    /// Directorio donde están los templates de SCP
+    /// Directory where SCP templates are located
     #[arg(short, long, default_value = "./scp-templates")]
     templates_dir: String,
-    // Uso: -t ./custom-dir  o  --templates-dir ./custom-dir
+    // Usage: -t ./custom-dir  or  --templates-dir ./custom-dir
 
-    /// Modo no interactivo - solo listar templates
+    /// Non-interactive mode - only list templates
     #[arg(short, long)]
     list_only: bool,
-    // Uso: -l  o  --list-only
+    // Usage: -l  or  --list-only
 
-    /// Crear templates de ejemplo
+    /// Create sample templates
     #[arg(long)]
     init: bool,
-    // Uso: --init
+    // Usage: --init
 }
 
 #[tokio::main] 
@@ -42,15 +42,15 @@ async fn main() -> Result<()> {
     let loader = TemplateLoader::new(args.templates_dir.clone());
     let templates = loader
         .load_all_templates()
-        .context("Error al cargar templates")?;  // Agrega contexto al error
+        .context("Error loading templates")?;  // Adds context to error
 
-    // Validar que haya templates
+    // Validate that templates exist
     if templates.is_empty() {
-        println!("{}", "⚠️  No se encontraron templates de SCP".yellow());
+        println!("{}", "⚠️  No SCP templates found".yellow());
         println!(
             "{}",
             format!(
-                "Ejecuta '{}' para crear templates de ejemplo",
+                "Run '{}' to create sample templates",
                 "scp-generator --init".bold()
             )
         );
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
 
     println!(
         "{}",
-        format!("✅ Se cargaron {} templates", templates.len())
+        format!("✅ Loaded {} templates", templates.len())
             .green()
             .bold()
     );
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
 
     let aws_manager = AwsScpManager::new()
         .await  // Async call
-        .context("Error al conectar con AWS")?;
+        .context("Error connecting to AWS")?;
 
     loop {
         match InteractiveMenu::show_main_menu()? {
@@ -88,8 +88,8 @@ async fn main() -> Result<()> {
                 handle_view_deployed(&aws_manager).await?;
             }
             MainMenuOption::Exit => {
-                println!("{}", "\n👋 ¡Hasta luego!".cyan().bold());
-                break;  // Salir del loop
+                println!("{}", "\n👋 Goodbye!".cyan().bold());
+                break;  // Exit loop
             }
         }
     }
@@ -106,17 +106,17 @@ async fn handle_select_by_category(
     templates: &[ScpTemplate],
     aws_manager: &AwsScpManager,
 ) -> Result<()> {
-    // 1. Usuario selecciona categoría
+    // 1. User selects category
     if let Some(category) = InteractiveMenu::select_category(templates)? {
         
-        // 2. Filtrar templates por categoría
+        // 2. Filter templates by category
         let filtered: Vec<ScpTemplate> = templates
             .iter()
             .filter(|t| t.category == category)
             .cloned()
             .collect();
 
-        // 3. Usuario selecciona un template específico
+        // 3. User selects a specific template
         if let Some(index) = InteractiveMenu::select_template(&filtered)? {
             handle_template_selection(&filtered[index], aws_manager).await?;
         }
@@ -140,7 +140,7 @@ async fn handle_search(
 }
 
 async fn handle_view_deployed(aws_manager: &AwsScpManager) -> Result<()> {
-    println!("{}", "🔍 Consultando SCPs en AWS Organizations...".cyan());
+    println!("{}", "🔍 Querying SCPs in AWS Organizations...".cyan());
 
     let scps = aws_manager.list_scps().await?;
     InteractiveMenu::show_deployed_scps(&scps);
@@ -152,26 +152,28 @@ async fn handle_template_selection(
     template: &ScpTemplate,
     aws_manager: &AwsScpManager,
 ) -> Result<()> {
-    // 1. Mostrar detalles del template
+    // 1. Show template details
     InteractiveMenu::show_template_details(template);
 
-    // 2. Confirmar creación
+    // 2. Confirm creation
     if !InteractiveMenu::confirm_create_scp(template)? {
-        println!("{}", "❌ Operación cancelada".yellow());
+        println!("{}", "❌ Operation cancelled".yellow());
         return Ok(());
     }
 
-    // 3. Personalizar nombre y descripción
-    let name = InteractiveMenu::get_custom_name(&template.name)?;
-    let description = InteractiveMenu::get_custom_description(&template.description)?;
+    // 3. Customize name & description
+    let pascal_name = InteractiveMenu::to_pascal_case(&template.name);
+    let name = InteractiveMenu::get_custom_name(&pascal_name)?;
+    let description = InteractiveMenu::get_custom_description(&template.name)
+        .unwrap_or_default();
 
-    // 4. Crear la SCP en AWS
+    // 4. Create the SCP in AWS
     let policy_content = template.to_json_string()?;
     let policy_id = aws_manager
         .create_scp(&name, &description, &policy_content)
         .await?;
 
-    // 5. Opcionalmente adjuntar a OU/cuenta
+    // 5. Optionally attach to OU/account
     if InteractiveMenu::confirm_attach_policy()? {
         handle_attach_policy(aws_manager, &policy_id).await?;
     }
@@ -180,46 +182,46 @@ async fn handle_template_selection(
 }
 
 async fn handle_attach_policy(aws_manager: &AwsScpManager, policy_id: &str) -> Result<()> {
-    println!("{}", "🔍 Obteniendo estructura de la organización...".cyan());
+    println!("{}", "🔍 Getting organization structure...".cyan());
 
-    // 1. Obtener roots de la organización
+    // 1. Get organization roots
     let roots = aws_manager.list_roots().await?;
     if roots.is_empty() {
-        println!("{}", "⚠️  No se encontraron roots en la organización".yellow());
+        println!("{}", "⚠️  No roots found in organization".yellow());
         return Ok(());
     }
 
-    // 2. Mostrar opciones de adjuntado
+    // 2. Show attachment options
     let options = vec![
-        "📁 Adjuntar a la raíz de la organización",
-        "🗂️  Adjuntar a una OU específica",
-        "❌ Cancelar",
+        "📁 Attach to organization root",
+        "🗂️  Attach to a specific OU",
+        "❌ Cancel",
     ];
 
     let selection = dialoguer::Select::with_theme(&dialoguer::theme::ColorfulTheme::default())
-        .with_prompt("¿Dónde deseas adjuntar la SCP?")
+        .with_prompt("Where do you want to attach the SCP?")
         .items(&options)
         .default(0)
         .interact()?;
 
     match selection {
         0 => {
-            // Adjuntar a root (toda la organización)
-            if let Some(target_id) = InteractiveMenu::select_target(&roots, "la raíz")? {
+            // Attach to root (entire organization)
+            if let Some(target_id) = InteractiveMenu::select_target(&roots, "the root")? {
                 aws_manager.attach_policy(policy_id, &target_id).await?;
             }
         }
         1 => {
-            // Adjuntar a una OU específica
+            // Attach to a specific OU
             let root_id = &roots[0].0;
             let ous = aws_manager.list_ous(root_id).await?;
             
-            if let Some(target_id) = InteractiveMenu::select_target(&ous, "una OU")? {
+            if let Some(target_id) = InteractiveMenu::select_target(&ous, "an OU")? {
                 aws_manager.attach_policy(policy_id, &target_id).await?;
             }
         }
         _ => {
-            println!("{}", "❌ Operación cancelada".yellow());
+            println!("{}", "❌ Operation cancelled".yellow());
         }
     }
 

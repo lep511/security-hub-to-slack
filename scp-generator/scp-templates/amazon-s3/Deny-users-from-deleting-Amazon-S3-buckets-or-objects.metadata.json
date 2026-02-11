@@ -1,0 +1,4 @@
+{
+    "policy_name": "DenyS3BucketDeletion",
+    "description": "Blocks all delete operations on protected S3 bucket"
+}

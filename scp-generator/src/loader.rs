@@ -13,7 +13,7 @@ impl TemplateLoader {
         Self { templates_dir }
     }
 
-    /// Carga todos los templates de SCP desde el directorio
+    /// Loads all SCP templates from the directory
     pub fn load_all_templates(&self) -> Result<Vec<ScpTemplate>> {
         let mut templates = Vec::new();
         
@@ -35,15 +35,15 @@ impl TemplateLoader {
         Ok(templates)
     }
 
-    /// Carga un template desde un archivo JSON
+    /// Loads a template from a JSON file
     fn load_template_from_file(&self, path: &Path) -> Result<ScpTemplate> {
         let content = fs::read_to_string(path)
-            .with_context(|| format!("Error leyendo archivo: {:?}", path))?;
+            .with_context(|| format!("Error reading file: {:?}", path))?;
 
         let policy: ScpPolicy = serde_json::from_str(&content)
-            .with_context(|| format!("Error parseando JSON: {:?}", path))?;
+            .with_context(|| format!("Error parsing JSON: {:?}", path))?;
 
-        // Extraer metadata del path o del contenido
+        // Extract metadata from path
         let file_name = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -57,28 +57,17 @@ impl TemplateLoader {
             .unwrap_or("general")
             .to_string();
 
-        let description = self.extract_description(&policy);
         let name = self.format_name(&file_name);
 
         Ok(ScpTemplate {
             name,
-            description,
             category,
             policy,
             file_path: path.to_string_lossy().to_string(),
         })
     }
 
-    /// Extrae descripción del primer Sid o usa el nombre del archivo
-    fn extract_description(&self, policy: &ScpPolicy) -> String {
-        policy
-            .statement
-            .first()
-            .and_then(|s| s.sid.clone())
-            .unwrap_or_else(|| "Sin descripción".to_string())
-    }
-
-    /// Formatea el nombre del archivo para mostrarlo mejor
+    /// Formats the file name for better display
     fn format_name(&self, file_name: &str) -> String {
         file_name
             .replace('-', " ")

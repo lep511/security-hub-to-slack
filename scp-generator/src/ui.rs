@@ -7,20 +7,20 @@ use std::collections::HashMap;
 pub struct InteractiveMenu;
 
 impl InteractiveMenu {
-    /// Muestra el menú principal
+    /// Shows the main menu
     pub fn show_main_menu() -> Result<MainMenuOption> {
         println!("\n{}", "=== AWS SCP Generator ===".bold().cyan());
 
         let options = vec![
-            "📋 Ver todas las SCPs disponibles",
-            "🎯 Seleccionar SCP por categoría",
-            "🔍 Buscar SCP por nombre",
-            "📤 Ver SCPs desplegadas en AWS",
-            "❌ Salir",
+            "View all available SCPs",
+            "Select SCP by category",
+            "Search SCP by name",
+            "View deployed SCPs in AWS",
+            "Exit",
         ];
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("¿Qué deseas hacer?")
+            .with_prompt("What do you want to do?\nUse arrow keys to navigate and Enter to select\n")
             .items(&options)
             .default(0)
             .interact()?;
@@ -35,20 +35,20 @@ impl InteractiveMenu {
         })
     }
 
-    /// Muestra lista de templates agrupados por categoría
+    /// Shows list of templates grouped by category
     pub fn select_template(templates: &[ScpTemplate]) -> Result<Option<usize>> {
         if templates.is_empty() {
-            println!("{}", "⚠️  No hay templates disponibles".yellow());
+            println!("{}", "No templates available".yellow());
             return Ok(None);
         }
 
         let items: Vec<String> = templates
             .iter()
-            .map(|t| format!("{} - {} ({})", "📄".cyan(), t.name.bold(), t.category.bright_black()))
+            .map(|t| format!("{} ({})", t.name.bold(), t.category.bright_black()))
             .collect();
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Selecciona una SCP")
+            .with_prompt("Select an SCP")
             .items(&items)
             .default(0)
             .interact_opt()?;
@@ -56,7 +56,7 @@ impl InteractiveMenu {
         Ok(selection)
     }
 
-    /// Muestra categorías disponibles
+    /// Shows available categories
     pub fn select_category(templates: &[ScpTemplate]) -> Result<Option<String>> {
         let mut categories: Vec<String> = templates
             .iter()
@@ -73,11 +73,11 @@ impl InteractiveMenu {
 
         let items: Vec<String> = categories
             .iter()
-            .map(|c| format!("📁 {}", c))
+            .map(|c| c.to_string())
             .collect();
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Selecciona una categoría")
+            .with_prompt("Select a category")
             .items(&items)
             .default(0)
             .interact_opt()?;
@@ -85,62 +85,79 @@ impl InteractiveMenu {
         Ok(selection.map(|i| categories[i].clone()))
     }
 
-    /// Muestra detalles de un template
+    /// Shows template details
     pub fn show_template_details(template: &ScpTemplate) {
-        println!("\n{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black());
-        println!("{} {}", "📄 Nombre:".bold(), template.name.cyan());
-        println!("{} {}", "📁 Categoría:".bold(), template.category.yellow());
-        println!("{} {}", "📝 Descripción:".bold(), template.description);
-        println!("\n{}", "Contenido de la política:".bold());
-        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black());
+        println!("\n{}", "----------------------------------------".bright_black());
+        println!("{} {}", "Name:".bold(), template.name.cyan());
+        println!("{} {}", "Category:".bold(), template.category.yellow());
+        println!("\n{}", "Policy content:".bold());
+        println!("{}", "----------------------------------------".bright_black());
         
         if let Ok(json) = template.to_json_string() {
             println!("{}", json.bright_black());
         }
         
-        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black());
+        println!("{}", "----------------------------------------".bright_black());
     }
 
-    /// Confirma si desea crear la SCP
+    /// Confirms if user wants to create the SCP
     pub fn confirm_create_scp(template: &ScpTemplate) -> Result<bool> {
         Confirm::with_theme(&ColorfulTheme::default())
-            .with_prompt(format!("¿Deseas crear esta SCP '{}' en AWS?", template.name))
+            .with_prompt(format!("Do you want to create this SCP '{}' in AWS?", template.name))
             .default(false)
             .interact()
             .map_err(Into::into)
     }
 
-    /// Solicita nombre personalizado para la SCP
+    /// Requests custom name for the SCP
     pub fn get_custom_name(default: &str) -> Result<String> {
-        Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Nombre de la SCP")
+        let input: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("SCP name")
             .default(default.to_string())
-            .interact_text()
-            .map_err(Into::into)
+            .interact_text()?;
+        
+        // Convert to PascalCase
+        Ok(Self::to_pascal_case(&input))
     }
 
-    /// Solicita descripción personalizada
+    /// Requests custom comment/description
     pub fn get_custom_description(default: &str) -> Result<String> {
-        Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Descripción")
+        let input: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("Comment (optional)")
             .default(default.to_string())
-            .interact_text()
-            .map_err(Into::into)
+            .interact_text()?;
+        
+        Ok(input)
     }
 
-    /// Confirma si desea adjuntar la SCP
+    /// Converts a string to PascalCase
+    pub fn to_pascal_case(input: &str) -> String {
+        input
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|s| !s.is_empty())
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    Some(first) => first.to_uppercase().chain(chars.map(|c| c.to_lowercase()).flatten()).collect::<String>(),
+                    None => String::new(),
+                }
+            })
+            .collect::<String>()
+    }
+
+    /// Confirms if user wants to attach the SCP
     pub fn confirm_attach_policy() -> Result<bool> {
         Confirm::with_theme(&ColorfulTheme::default())
-            .with_prompt("¿Deseas adjuntar esta SCP a una OU o cuenta?")
+            .with_prompt("Do you want to attach this SCP to an OU or account?")
             .default(false)
             .interact()
             .map_err(Into::into)
     }
 
-    /// Selecciona un target (OU o Root)
+    /// Selects a target (OU or Root)
     pub fn select_target(targets: &[(String, String)], target_type: &str) -> Result<Option<String>> {
         if targets.is_empty() {
-            println!("{}", format!("⚠️  No hay {} disponibles", target_type).yellow());
+            println!("{}", format!("No {} available", target_type).yellow());
             return Ok(None);
         }
 
@@ -150,7 +167,7 @@ impl InteractiveMenu {
             .collect();
 
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(format!("Selecciona {}", target_type))
+            .with_prompt(format!("Select {}", target_type))
             .items(&items)
             .default(0)
             .interact_opt()?;
@@ -158,10 +175,10 @@ impl InteractiveMenu {
         Ok(selection.map(|i| targets[i].0.clone()))
     }
 
-    /// Busca templates por término
+    /// Searches templates by term
     pub fn search_templates(templates: &[ScpTemplate]) -> Result<Vec<ScpTemplate>> {
         let search_term: String = Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Buscar SCP (nombre o descripción)")
+            .with_prompt("Search SCP name or category")
             .interact_text()?;
 
         let search_lower = search_term.to_lowercase();
@@ -169,42 +186,38 @@ impl InteractiveMenu {
             .iter()
             .filter(|t| {
                 t.name.to_lowercase().contains(&search_lower)
-                    || t.description.to_lowercase().contains(&search_lower)
                     || t.category.to_lowercase().contains(&search_lower)
             })
             .cloned()
             .collect();
 
         if results.is_empty() {
-            println!("{}", format!("⚠️  No se encontraron resultados para '{}'", search_term).yellow());
+            println!("{}", format!("No results found for '{}'", search_term).yellow());
         } else {
-            println!("{}", format!("✅ Se encontraron {} resultado(s)", results.len()).green());
+            println!("{}", format!("Found {} result(s)", results.len()).green());
         }
 
         Ok(results)
     }
 
-    /// Muestra lista de SCPs desplegadas
-    pub fn show_deployed_scps(scps: &[(String, String, String)]) {
+    /// Shows list of deployed SCPs
+    pub fn show_deployed_scps(scps: &[(String, String)]) {
         if scps.is_empty() {
-            println!("{}", "⚠️  No hay SCPs desplegadas".yellow());
+            println!("{}", "No deployed SCPs".yellow());
             return;
         }
 
-        println!("\n{}", "SCPs desplegadas en AWS Organizations:".bold().cyan());
-        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black());
+        println!("\n{}", "SCPs deployed in AWS Organizations:".bold().cyan());
+        println!("{}", "----------------------------------------".bright_black());
 
-        for (id, name, description) in scps {
-            println!("\n{} {}", "📋 ID:".bold(), id.yellow());
-            println!("{} {}", "   Nombre:".bold(), name.cyan());
-            if !description.is_empty() {
-                println!("{} {}", "   Descripción:".bold(), description);
-            }
+        for (id, name) in scps {
+            println!("\n{} {}", "ID:".bold(), id.yellow());
+            println!("{} {}", "   Name:".bold(), name.cyan());
         }
-        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black());
+        println!("{}", "----------------------------------------".bright_black());
     }
 
-    /// Agrupa templates por categoría
+    /// Groups templates by category
     pub fn group_by_category(templates: &[ScpTemplate]) -> HashMap<String, Vec<ScpTemplate>> {
         let mut grouped: HashMap<String, Vec<ScpTemplate>> = HashMap::new();
         
@@ -218,20 +231,19 @@ impl InteractiveMenu {
         grouped
     }
 
-    /// Muestra templates agrupados por categoría
+    /// Shows templates grouped by category
     pub fn show_templates_by_category(templates: &[ScpTemplate]) {
         let grouped = Self::group_by_category(templates);
         let mut categories: Vec<_> = grouped.keys().collect();
         categories.sort();
 
-        println!("\n{}", "SCPs disponibles por categoría:".bold().cyan());
+        println!("\n{}", "Available SCPs by category:".bold().cyan());
 
         for category in categories {
             if let Some(templates) = grouped.get(category) {
-                println!("\n{} {} ({} políticas)", "📁".yellow(), category.bold(), templates.len());
+                println!("\n{} ({} policies)", category.bold(), templates.len());
                 for template in templates {
-                    println!("   {} {}", "└─".bright_black(), template.name.cyan());
-                    println!("      {}", template.description.bright_black());
+                    println!("   - {}", template.name.cyan());
                 }
             }
         }
