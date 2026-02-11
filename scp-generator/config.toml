@@ -1,0 +1,45 @@
+[general]
+# Directorio donde se encuentran los templates
+templates_dir = "./scp-templates"
+
+# Verbosity level (debug, info, warn, error)
+log_level = "info"
+
+[aws]
+# Región por defecto (se puede sobrescribir con AWS_REGION)
+default_region = "us-east-1"
+
+# Profile de AWS CLI a usar (opcional)
+# profile = "my-org-admin"
+
+[templates]
+# Categorías personalizadas
+# Puedes definir tus propias categorías y colores
+categories = [
+    { name = "security", color = "red", icon = "🔒" },
+    { name = "compliance", color = "yellow", icon = "📋" },
+    { name = "security-services", color = "blue", icon = "🛡️" },
+    { name = "governance", color = "green", icon = "⚖️" },
+    { name = "cost-control", color = "cyan", icon = "💰" },
+]
+
+[deployment]
+# Opciones por defecto al crear SCPs
+default_name_prefix = ""
+default_name_suffix = ""
+
+# Preguntar confirmación antes de adjuntar
+confirm_attach = true
+
+# Habilitar dry-run por defecto
+dry_run = false
+
+[ui]
+# Tema de colores (light, dark, default)
+theme = "default"
+
+# Mostrar banner al inicio
+show_banner = true
+
+# Número de resultados por página
+page_size = 10
